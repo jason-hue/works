@@ -10,11 +10,11 @@
 
   - 没有简易调试器（使用 GDB）：
 
-    ![image-20260206150826218](https://raw.githubusercontent.com/jason-hue/riscv-board-custom-dev/main/Duo_S/images/image-20260206150826218.png)
+    ![image-20260206150826218](https://raw.githubusercontent.com/jason-hue/plct/main/image-20260206150826218.png)
 
   - 实现了简易调试器（sdb）:
 
-    ![image-20260206150904106](C:\Users\knifefire\AppData\Roaming\Typora\typora-user-images\image-20260206150904106.png)
+    ![image-20260206150904106](https://raw.githubusercontent.com/jason-hue/plct/main/image-20260206150904106.png)
 
 - x86
 
