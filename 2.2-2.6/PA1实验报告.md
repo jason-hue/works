@@ -10,15 +10,11 @@
 
   - 没有简易调试器（使用 GDB）：
 
-    - $$
-      排除一个 Bug 的时间：20 \text{ 个信息} \times 30 \text{ 秒/信息} = 600 \text{ 秒} = 10 \text{ 分钟}\\总调试时间：450 \text{ 次调试} \times 10 \text{ 分钟/次} = 4500 \text{ 分钟}\\换算成小时：4500 \div 60 = \mathbf{75 \text{ 小时}}
-      $$
+    ![image-20260206150826218](https://raw.githubusercontent.com/jason-hue/riscv-board-custom-dev/main/Duo_S/images/image-20260206150826218.png)
 
   - 实现了简易调试器（sdb）:
 
-    - $$
-      排除一个 Bug 的时间：20 \text{ 个信息} \times 10 \text{ 秒/信息} = 200 \text{ 秒} \approx 3.33 \text{ 分钟}\\总调试时间：450 \text{ 次调试} \times 200 \text{ 秒/次} = 90000 \text{ 秒}\\换算成小时：90000 \div 3600 = \mathbf{25 \text{ 小时}}
-      $$
+    ![image-20260206150904106](C:\Users\knifefire\AppData\Roaming\Typora\typora-user-images\image-20260206150904106.png)
 
 - x86
 
@@ -62,23 +58,38 @@
   - 原理（以 `MUXDEF(CONFIG_DEVICE, "ON", "OFF")` 为例）
 
     - 情况 A：宏 `CONFIG_DEVICE` 已定义为 `1`
-      - **拼接**：`MUXDEF` 会把 `__P_DEF_` 和 `CONFIG_DEVICE` 拼接成 `__P_DEF_1`。
-      - **替换**：`__P_DEF_1` 被替换为 `X, `（注意那个逗号）。
-      - **展开 `MUX_WITH_COMMA`**： 它接收到的第一个参数 `contain_comma` 变成了 `X, `。 代入后变成：`CHOOSE2nd(X, "ON", "OFF")`
-      - **最终选择**：
+      - 拼接：`MUXDEF` 会把 `__P_DEF_` 和 `CONFIG_DEVICE` 拼接成 `__P_DEF_1`。
+      - 替换：`__P_DEF_1` 被替换为 `X, `（注意那个逗号）。
+      - 展开 `MUX_WITH_COMMA`： 它接收到的第一个参数 `contain_comma` 变成了 `X, `。 代入后变成：`CHOOSE2nd(X, "ON", "OFF")`
+      - 最终选择：
         - 参数 1：`X`
         - 参数 2：`"ON"`
         - `CHOOSE2nd` 取第二个参数，结果为 **`"ON"`**。
 
     - 情况 B：宏 `CONFIG_DEVICE` 未定义
 
-      - **拼接**：由于没有定义 `CONFIG_DEVICE`，拼接结果是原样字符串 `__P_DEF_CONFIG_DEVICE`。
-      - **替换**：预处理器找不到 `__P_DEF_CONFIG_DEVICE` 的定义，所以它**没有逗号**。
-      - **展开 `MUX_WITH_COMMA`**： 代入后变成：`CHOOSE2nd(__P_DEF_CONFIG_DEVICE "ON", "OFF")` 注意！因为没有逗号，`__P_DEF_...` 和 `"ON"` 被看作了同一个参数（中间只是空格）。
+      - 拼接：由于没有定义 `CONFIG_DEVICE`，拼接结果是原样字符串 `__P_DEF_CONFIG_DEVICE`。
+      - 替换：预处理器找不到 `__P_DEF_CONFIG_DEVICE` 的定义，所以它没有逗号。
+      - 展开 `MUX_WITH_COMMA`： 代入后变成：`CHOOSE2nd(__P_DEF_CONFIG_DEVICE "ON", "OFF")` 注意！因为没有逗号，`__P_DEF_...` 和 `"ON"` 被看作了同一个参数（中间只是空格）。
 
-      - **最终选择**：
+      - 最终选择：
         - 参数 1：`__P_DEF_CONFIG_DEVICE "ON"`
         - 参数 2：`"OFF"`
         - `CHOOSE2nd` 取第二个参数，结果为 **`"OFF"`**。
 
-- 
+- > #####  一点也不能长?
+  >
+  > x86的`int3`指令不带任何操作数, 操作码为1个字节, 因此指令的长度是1个字节. 这是必须的吗? 假设有一种x86体系结构的变种my-x86, 除了`int3`指令的长度变成了2个字节之外, 其余指令和x86相同. 在my-x86中, 上述文章中的断点机制还可以正常工作吗? 为什么?
+
+  - x86 的 `int3` 指令（`0xCC`）之所以必须是单字节，是为了解决变长指令集下的对齐与覆盖风险。
+    - 物理原理：调试器通过覆盖 1 字节原指令来实现断点。如果变种架构 `my-x86` 将其变为 2 字节，就会发生“破坏邻居”现象——覆盖掉紧随其后的指令字节。
+    - 后果：这会导致其他跳转到该位置或多线程运行的代码读到受损的无效指令，引发非法操作码异常，使调试机制在复杂的生产/内核环境下彻底崩溃。
+
+- > ##### 随心所欲的断点
+  >
+  > 如果把断点设置在指令的非首字节(中间或末尾), 会发生什么? 你可以在GDB中尝试一下, 然后思考并解释其中的缘由.
+
+  - 会发生什么？
+    - 静默失败：断点被当作操作数“吞掉”，调试器没有任何反应，程序继续运行。
+    - 无效指令错误：如果 `0xCC` 改变了原指令的长度或含义，可能导致 CPU 随后解析出不存在的指令码，触发 `SIGILL` (Illegal Instruction)。
+    - 计算偏离：程序逻辑发生不可预知的改变。
